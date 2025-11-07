@@ -1,15 +1,24 @@
-// /app/blog/[slug]/page.tsx
-import { getPostBySlug, getAllPosts } from '@/app/lib/blog'; // سننشئ هذا الملف بعد قليل
+// app/blog/[slug]/page.tsx
+import { getPostBySlug, getAllPosts } from '@/app/lib/blog';
 import { notFound } from 'next/navigation';
-import markdownToHtml from '@/app/lib/markdownToHtml'; // وهذا أيضًا
+import markdownToHtml from '@/app/lib/markdownToHtml';
 
+export async function generateStaticParams() {
+  const posts = getAllPosts(['slug']);
+  return posts.map((post) => ({
+    slug: post.slug,
+  }));
+}
+
+// فقط عرف النوع يدوياً
 type Props = {
-  params: { slug: string };
+  params: {
+    slug: string;
+  };
 };
 
 export default async function PostPage({ params }: Props) {
-  // إذا كانت الدوال getPostBySlug أو getAllPosts غير async
-  const post = getPostBySlug(params.slug, ['title','date','content','imageUrl']);
+  const post = getPostBySlug(params.slug, ['title', 'date', 'content', 'imageUrl']);
 
   if (!post) return notFound();
 
