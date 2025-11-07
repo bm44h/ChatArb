@@ -15,7 +15,7 @@ export default function TermsOfServicePage() {
           {/* مقدمة */}
           <section>
             <p className="text-lg text-gray-700 leading-relaxed">
-              أهلاً بك في منصة <span className="font-semibold">ChatArb</span>. هذه الشروط والأحكام "الشروط" تحكم استخدامك لمنصتنا التي تتيح لك إنشاء وإدارة مساعد رقمي "شات بوت" لمتجرك الإلكتروني.
+              أهلاً بك في منصة <span className="font-semibold">ChatArb</span>. هذه الشروط والأحكام "الشروط" تحكم استخدامك لمنصتنا التي تتيح لك إنشاء وإدارة مساعد رقمي شات بوت لمتجرك الإلكتروني.
             </p>
             <p className="mt-4 text-gray-700 border-r-4 border-gray-300 pr-4">
               <span className="font-semibold">ملاحظة هامة:</span> بوصولك إلى خدمتنا أو استخدامها، فإنك توافق على الالتزام بهذه الشروط. إذا كنت لا توافق على أي جزء من الشروط، فلا يجوز لك الوصول إلى الخدمة.

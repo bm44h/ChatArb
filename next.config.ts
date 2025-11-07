@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
 
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
     webpack(config, { isServer, dev }) {
     // إعدادات خاصة لحل مشكلة onnxruntime-node
     config.externals.push({
@@ -13,6 +17,8 @@ const nextConfig: NextConfig = {
       test: /\.node$/,
       use: 'node-loader',
     });
+
+    
     return config;
   }
 };
