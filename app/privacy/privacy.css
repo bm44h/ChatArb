@@ -1,0 +1,10 @@
+.privacy-container {
+  all: unset;
+  display: block;
+  font-family: system-ui, sans-serif !important;
+  direction: rtl;
+}
+
+.privacy-container * {
+  font-family: inherit !important;
+}

@@ -1,0 +1,12 @@
+/* أزل تأثير خط El Messiri */
+.dashboard-container {
+  all: unset;
+  display: block;
+  font-family: system-ui, sans-serif !important;
+  direction: rtl; /* لو واجهتك مشكلة اتجاه النص */
+}
+
+/* تأكد أن النصوص داخل الـ dashboard لا ترث الخط */
+.dashboard-container * {
+  font-family: inherit !important;
+}

@@ -1,0 +1,10 @@
+.use-container {
+  all: unset;
+  display: block;
+  font-family: system-ui, sans-serif !important;
+  direction: rtl;
+}
+
+.use-container * {
+  font-family: inherit !important;
+}
