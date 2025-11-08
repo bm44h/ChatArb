@@ -41,6 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 /app/api/crawl/**
+/app/api/chat/**
 # منع رفع المكتبات الثقيلة
 /node_modules/onnxruntime-node/
 /node_modules/playwright/
