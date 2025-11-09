@@ -32,10 +32,6 @@ export default function BotSettingsTab({ projectId }: { projectId: string }) {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [lastSync, setLastSync] = useState("لم تتم المزامنة بعد");
   const [hasChanges, setHasChanges] = useState(false);
-  const SALLA_CLIENT_ID = process.env.SALLA_CLIENT_ID;
-  const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL}/integrations/salla/callback`;
-
-  const sallaAuthUrl = `https://accounts.salla.sa/oauth2/auth?client_id=${SALLA_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI )}&response_type=code&scope=orders.read`;
 
 
   // جلب الإعدادات عند تحميل المكون
@@ -268,30 +264,6 @@ export default function BotSettingsTab({ projectId }: { projectId: string }) {
         {/* فاصل بين الأقسام */}
         <hr className="border-gray-200" />
 
-        <div className="bg-white shadow-md rounded-lg p-6 mt-8">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">
-            التكامل مع المنصات
-          </h2>
-          <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-            <div>
-              <h3 className="font-semibold text-gray-700">متجر سلة</h3>
-              <p className="text-sm text-gray-500">
-                اربط متجرك على سلة للسماح للبوت بتتبع حالة الطلبات.
-              </p>
-            </div>
-            {/* 
-      هنا سنضيف منطقًا لاحقًا للتحقق مما إذا كان الربط قد تم بالفعل.
-      إذا تم الربط، سنعرض زر "إلغاء الربط".
-      إذا لم يتم، سنعرض زر "ربط".
-    */}
-            <a
-              href={sallaAuthUrl}
-              className="px-4 py-2 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 transition-colors"
-            >
-              ربط
-            </a>
-          </div>
-        </div>
 
         <hr className="border-gray-200" />
 

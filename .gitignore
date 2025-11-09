@@ -40,9 +40,4 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-/app/api/crawl/**
-/app/api/chat/**
-# منع رفع المكتبات الثقيلة
-/node_modules/onnxruntime-node/
-/node_modules/playwright/
-/node_modules/@huggingface/
+
