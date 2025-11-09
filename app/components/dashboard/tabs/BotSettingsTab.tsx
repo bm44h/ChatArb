@@ -136,48 +136,38 @@ export default function BotSettingsTab({ projectId }: { projectId: string }) {
       setIsSaving(false);
     }
   };
-
-// --- 3. دالة لإعادة المزامنة (الزحف) ---
 const handleSync = async () => {
-  // تحقق من وجود رابط المتجر أولاً
   if (!storeUrl || storeUrl.trim() === "") {
     toast.error("ادخل رابط متجرك اولاً");
     return;
   }
   
-  // ابدأ حالة التحميل في الواجهة
   setIsSyncing(true);
   
   try {
-    // اقرأ رابط الـ API من متغيرات البيئة
     const crawlApiUrl = process.env.NEXT_PUBLIC_CRAWL_API_URL;
+    if (!crawlApiUrl) throw new Error("لم يتم تكوين رابط خدمة الزحف.");
 
-    // تحقق من وجود الرابط قبل إرسال الطلب
-    if (!crawlApiUrl) {
-      throw new Error("لم يتم تكوين رابط خدمة الزحف.");
-    }
-
-    // أطلق الطلب في الخلفية (بدون await)
-    // هذا هو منطق "أطلق وانسى"
-    fetch(crawlApiUrl, {
+    // ✅ الآن نستخدم await مرة أخرى، لأننا نتوقع ردًا فوريًا
+    const response = await fetch(crawlApiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projectId, url: storeUrl }),
     });
 
-    // --- المنطق الجديد ---
-    // بما أننا لا ننتظر الرد، نعرض رسالة نجاح فورية للمستخدم
-    // ونقوم بتحديث الواجهة.
+    // تحقق من أن الخادم قبل الطلب (200 OK أو 202 Accepted)
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: "فشل الخادم في قبول الطلب." }));
+      throw new Error(errorData.message || "حدث خطأ في الخادم");
+    }
+
+    // نجاح! الخادم قبل الطلب.
     setLastSync(new Date().toLocaleString("ar-EG"));
-    toast.success("تم إرسال طلب المزامنة. ستتم معالجة البيانات في الخلفية وقد يستغرق الأمر عدة دقائق.");
+    toast.success("تم قبول طلب المزامنة. ستتم معالجة البيانات في الخلفية.");
 
   } catch (err: any) {
-    // هذا سيلتقط فقط الأخطاء التي تحدث قبل إرسال الطلب
-    // (مثل عدم وجود crawlApiUrl)
-    // setError(err.message); // يمكنك تفعيل هذا السطر إذا كان لديك حالة لعرض الأخطاء
     toast.error(err.message || "فشل إرسال طلب المزامنة");
   } finally {
-    // أوقف حالة التحميل في الواجهة في جميع الحالات
     setIsSyncing(false);
   }
 };
