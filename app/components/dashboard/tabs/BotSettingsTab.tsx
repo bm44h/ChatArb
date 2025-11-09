@@ -33,7 +33,6 @@ export default function BotSettingsTab({ projectId }: { projectId: string }) {
   const [lastSync, setLastSync] = useState("لم تتم المزامنة بعد");
   const [hasChanges, setHasChanges] = useState(false);
 
-
   // جلب الإعدادات عند تحميل المكون
   useEffect(() => {
     if (!projectId) return;
@@ -138,37 +137,51 @@ export default function BotSettingsTab({ projectId }: { projectId: string }) {
     }
   };
 
+// --- 3. دالة لإعادة المزامنة (الزحف) ---
+const handleSync = async () => {
+  // تحقق من وجود رابط المتجر أولاً
+  if (!storeUrl || storeUrl.trim() === "") {
+    toast.error("ادخل رابط متجرك اولاً");
+    return;
+  }
+  
+  // ابدأ حالة التحميل في الواجهة
+  setIsSyncing(true);
+  
+  try {
+    // اقرأ رابط الـ API من متغيرات البيئة
+    const crawlApiUrl = process.env.NEXT_PUBLIC_CRAWL_API_URL;
 
-  // --- 3. دالة لإعادة المزامنة (الزحف) ---
-  const handleSync = async () => {
-    if (!storeUrl || storeUrl.trim() === "") {
-      toast.error("ادخل رابط متجرك اولاً");
-      return; // إيقاف تنفيذ الدالة هنا
+    // تحقق من وجود الرابط قبل إرسال الطلب
+    if (!crawlApiUrl) {
+      throw new Error("لم يتم تكوين رابط خدمة الزحف.");
     }
-    setIsSyncing(true);
-    const toastId = toast.loading("جاري بدء عملية الزحف...");
-    try {
 
-    const response = await fetch(process.env.NEXT_PUBLIC_CRAWL_API_URL!, {
+    // أطلق الطلب في الخلفية (بدون await)
+    // هذا هو منطق "أطلق وانسى"
+    fetch(crawlApiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projectId, url: storeUrl }),
     });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || "فشلت عملية المزامنة");
-      }
+    // --- المنطق الجديد ---
+    // بما أننا لا ننتظر الرد، نعرض رسالة نجاح فورية للمستخدم
+    // ونقوم بتحديث الواجهة.
+    setLastSync(new Date().toLocaleString("ar-EG"));
+    toast.success("تم إرسال طلب المزامنة. ستتم معالجة البيانات في الخلفية وقد يستغرق الأمر عدة دقائق.");
 
-      setLastSync(new Date().toLocaleString("ar-EG"));
-      toast.success("بدأت المزامنة في الخلفية بنجاح.", { id: toastId });
-    } catch (err: any) {
-      setError(err.message);
-      toast.error(err.message || "حدث خطأ غير متوقع", { id: toastId });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+  } catch (err: any) {
+    // هذا سيلتقط فقط الأخطاء التي تحدث قبل إرسال الطلب
+    // (مثل عدم وجود crawlApiUrl)
+    // setError(err.message); // يمكنك تفعيل هذا السطر إذا كان لديك حالة لعرض الأخطاء
+    toast.error(err.message || "فشل إرسال طلب المزامنة");
+  } finally {
+    // أوقف حالة التحميل في الواجهة في جميع الحالات
+    setIsSyncing(false);
+  }
+};
+
 
   if (isLoading) return <SettingsSkeleton />;
   if (error)
@@ -265,7 +278,6 @@ export default function BotSettingsTab({ projectId }: { projectId: string }) {
 
         {/* فاصل بين الأقسام */}
         <hr className="border-gray-200" />
-
 
         <hr className="border-gray-200" />
 
