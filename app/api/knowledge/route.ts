@@ -1,34 +1,28 @@
-// src/app/api/knowledge/route.ts
+// src/app/api/knowledge/route.ts - الإصدار النهائي باستخدام Supabase
 
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { CloudClient } from "chromadb";
-// لا حاجة لـ noStore الآن، لنجرب بدونه أولاً
 
 export async function GET(request: Request) {
+  const supabase = createRouteHandlerClient({ cookies });
+  
   try {
-    // --- [تم التغيير هنا] ---
-    // إنشاء العميل داخل كتلة try
-    const supabase = createRouteHandlerClient({ cookies });
-    // --- [نهاية التغيير] ---
-
     // 1. التحقق من جلسة المستخدم
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-    if (sessionError || !session) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
       return NextResponse.json({ message: 'غير مصرح به' }, { status: 401 });
     }
     const userId = session.user.id;
 
+    // 2. الحصول على معرف المشروع من الرابط
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
-
     if (!projectId) {
       return NextResponse.json({ message: 'معرف المشروع مطلوب' }, { status: 400 });
     }
 
-    // 2. التحقق من الملكية
+    // 3. التحقق من أن المستخدم يملك هذا المشروع
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .select('id')
@@ -37,36 +31,31 @@ export async function GET(request: Request) {
       .single();
 
     if (projectError || !project) {
-        return NextResponse.json({ message: 'الوصول مرفوض' }, { status: 403 });
+      return NextResponse.json({ message: 'الوصول مرفوض أو المشروع غير موجود' }, { status: 403 });
     }
 
-    // 3. الاتصال بـ ChromaDB
-    const collectionName = `project-${projectId}`;
-    const chromaClient = new CloudClient();
-    
-    let collection;
-    try {
-        collection = await chromaClient.getCollection({ name: collectionName });
-    } catch (error) {
-        return NextResponse.json({ knowledge: { documents: [], metadatas: [] } }, { status: 200 });
+    // ✅ [الحل] 4. جلب البيانات مباشرة من جدول 'documents' في Supabase
+    const { data: documents, error: documentsError } = await supabase
+      .from('documents')
+      .select('content, metadata')
+      .eq('metadata->>projectId', projectId); // <-- فلترة حسب معرف المشروع
+
+    if (documentsError) {
+      console.error("Error fetching knowledge from Supabase:", documentsError);
+      throw documentsError;
     }
 
-    // 4. جلب البيانات
-    const allData = await collection.get({
-        include: ["documents", "metadatas"]
-    });
+    // 5. إعادة هيكلة البيانات لتناسب الشكل الذي تتوقعه الواجهة الأمامية
+    const knowledge = {
+      documents: documents.map(doc => doc.content),
+      metadatas: documents.map(doc => doc.metadata),
+    };
 
-    // 5. إرجاع البيانات
-    return NextResponse.json({ knowledge: allData }, { status: 200 });
+    // 6. إرجاع البيانات
+    return NextResponse.json({ knowledge }, { status: 200 });
 
   } catch (error) {
-    // هذا سيلتقط الآن أخطاء `cookies()` أيضًا
-    if (error instanceof Error && error.message.includes('should be awaited')) {
-        console.error("Dynamic API usage error:", error.message);
-        return NextResponse.json({ message: 'خطأ في الخادم يتعلق بالوصول الديناميكي للبيانات. حاول مرة أخرى.' }, { status: 500 });
-    }
     console.error('API GET /knowledge error:', error);
     return NextResponse.json({ message: 'حدث خطأ داخلي في الخادم' }, { status: 500 });
   }
 }
- 
