@@ -2,21 +2,20 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server'; // استيراد نوع الطلب
+import type { NextRequest } from 'next/server';
 
-// يجب أن تكون الدالة async
 export async function GET(request: NextRequest) {
+  // هنا نستخدم URL من الطلب الأصلي لاستخراج الـ code
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
 
   if (code) {
-    // نقوم بإنشاء الكوكيز أولاً
     const cookieStore = cookies(); 
-    // ثم نمررها لإنشاء عميل Supabase
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  // توجيه المستخدم إلى لوحة التحكم بعد تسجيل الدخول الناجح
-  return NextResponse.redirect(requestUrl.origin + '/dashboard');
+  // بعد تسجيل الدخول، توجه المستخدم إلى لوحة التحكم على الرابط النهائي
+  const redirectUrl = process.env.NEXT_PUBLIC_APP_URL + '/dashboard';
+  return NextResponse.redirect(redirectUrl);
 }
