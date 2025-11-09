@@ -138,6 +138,7 @@ export default function BotSettingsTab({ projectId }: { projectId: string }) {
     }
   };
 
+
   // --- 3. دالة لإعادة المزامنة (الزحف) ---
   const handleSync = async () => {
     if (!storeUrl || storeUrl.trim() === "") {
@@ -147,11 +148,12 @@ export default function BotSettingsTab({ projectId }: { projectId: string }) {
     setIsSyncing(true);
     const toastId = toast.loading("جاري بدء عملية الزحف...");
     try {
-      const response = await fetch("/api/crawl", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, url: storeUrl }),
-      });
+
+    const response = await fetch(process.env.NEXT_PUBLIC_CRAWL_API_URL!, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId, url: storeUrl }),
+    });
 
       if (!response.ok) {
         const errorData = await response.json();
