@@ -30,9 +30,10 @@ export async function POST(request: Request) {
 
     const apiKey = project.api_key;
     
-    // 3. استدعاء نقطة النهاية الداخلية والآمنة (/api/chat)
-    // نحن نستخدم fetch على الخادم لاستدعاء نقطة نهاية أخرى على نفس الخادم
-    const internalChatResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/chat`, {
+
+    const internalChatUrl = new URL('/api/chat', request.url);
+
+    const internalChatResponse = await fetch(internalChatUrl.toString(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
