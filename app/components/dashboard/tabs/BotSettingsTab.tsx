@@ -5,6 +5,9 @@ import { useState, useEffect } from "react";
 import { RefreshCw, Save, Check } from "lucide-react";
 import SettingsSkeleton from "./SettingsSkeleton"; // <-- 1. استيراد المكون الجديد
 import toast from "react-hot-toast";
+import Link from 'next/link';
+import { Eye } from 'lucide-react';
+
 
 // تعريف الألوان المتاحة
 const colorOptions = [
@@ -268,6 +271,27 @@ const handleSync = async () => {
 
         {/* فاصل بين الأقسام */}
         <hr className="border-gray-200" />
+
+      <div className="mt-8 pt-6 border-t border-gray-200">
+        <h3 className="text-lg font-medium">اختبار واجهة الدردشة</h3>
+        {/* ... */}
+        <div className="mt-4">
+          {/* ✅ [تم التعديل هنا] */}
+          <Link 
+            href={`/chat?projectId=${projectId}`} // <-- الرابط الجديد
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md shadow-sm hover:bg-indigo-700"
+            >
+              <Eye size={16} />
+              <span>فتح صفحة اختبار الدردشة</span>
+            </button>
+          </Link>
+        </div>
+      </div>
 
         <hr className="border-gray-200" />
 
