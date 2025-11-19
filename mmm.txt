@@ -1,0 +1,1814 @@
+// src/app/api/crawl/route.ts - Hyper-Crawler v4.1 (AI-Powered Edition)
+
+import { NextResponse } from "next/server";
+import * as cheerio from "cheerio";
+import { HuggingFaceTransformersEmbeddings } from "@langchain/community/embeddings/hf_transformers";
+import { chromium, Browser, Page } from "playwright";
+import { Document } from "langchain/document";
+import { createClient } from "@supabase/supabase-js";
+import { v4 as uuidv4 } from "uuid";
+
+// ============================================
+// 🧠 نظام الانتظار الذكي المحسن (Ultimate Edition)
+// ============================================
+
+interface SmartWaitResult {
+  success: boolean;
+  strategy: string;
+  timeSpent: number;
+  linksFound: number;
+  contentQuality: number;
+  criticalContentFound: boolean;
+  productsDetected: number;
+}
+
+async function intelligentWaitStrategyV4(
+  page: Page,
+  url: string,
+  taskNum: number
+): Promise<SmartWaitResult> {
+  const startTime = Date.now();
+  let strategy = "unknown";
+  let criticalContentFound = false;
+  let productsDetected = 0;
+
+  try {
+    // ========================================
+    // 🔍 المستوى 0: كشف المنصة أولاً
+    // ========================================
+    console.log(`  [Task ${taskNum}] 🔍 Platform detection...`);
+    
+    const platformDetection = await page.evaluate(() => {
+      const html = document.documentElement.outerHTML;
+      const isSalla = 
+        html.includes('salla.sa') || 
+        html.includes('salla-bundle') ||
+        document.querySelector('script[src*="salla"]') !== null;
+      
+      const isZid = 
+        html.includes('zid.sa') || 
+        html.includes('zid-platform') ||
+        document.querySelector('script[src*="zid"]') !== null;
+      
+      const isNextJS = document.querySelector('script#__NEXT_DATA__') !== null;
+
+      return { isSalla, isZid, isNextJS };
+    });
+
+    const platform = platformDetection.isSalla ? "Salla" : 
+                    platformDetection.isZid ? "Zid" : 
+                    platformDetection.isNextJS ? "NextJS" : "Generic";
+    
+    console.log(`  [Task ${taskNum}] 🏪 Detected platform: ${platform}`);
+
+    // ========================================
+    // 🎯 المستوى 1: انتظار محدد حسب المنصة
+    // ========================================
+    if (platformDetection.isSalla) {
+      console.log(`  [Task ${taskNum}] ⏳ Salla platform - enhanced waiting...`);
+      
+      // محددات Salla المحددة
+      const sallaSelectors = [
+        '.s-block-product-card',
+        '[data-product-id]',
+        '.product-entry',
+        '.s-product-card-entry',
+        '.s-block-product-card__name'
+      ];
+      
+      for (const selector of sallaSelectors) {
+        try {
+          await page.waitForSelector(selector, { timeout: 5000 });
+          console.log(`  [Task ${taskNum}] ✅ Found Salla selector: ${selector}`);
+          criticalContentFound = true;
+          break;
+        } catch (e) {
+          // continue to next selector
+        }
+      }
+      
+      // انتظار تحميل الشبكة
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      
+      // انتظار إضافي للمحتوى الديناميكي
+      await page.waitForTimeout(3000);
+      
+      strategy = 'salla_optimized_v4';
+    }
+    else if (platformDetection.isZid) {
+      console.log(`  [Task ${taskNum}] ⏳ Zid platform - enhanced waiting...`);
+      
+      await page.waitForSelector('.z-product-card, [data-zid-product], .z-product-page', { 
+        timeout: 6000 
+      }).catch(() => {});
+      
+      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page.waitForTimeout(2000);
+      
+      strategy = 'zid_optimized_v4';
+      criticalContentFound = true;
+    }
+    else if (platformDetection.isNextJS) {
+      console.log(`  [Task ${taskNum}] ⏳ NextJS platform - extended wait...`);
+      
+      await page.waitForLoadState('networkidle', { timeout: 12000 }).catch(() => {});
+      await page.waitForTimeout(4000);
+      
+      strategy = 'nextjs_optimized_v4';
+    }
+    else {
+      // انتظار عام محسّن
+      console.log(`  [Task ${taskNum}] ⏳ Generic platform enhanced wait...`);
+      
+      const genericSelectors = [
+        '.product, .product-item, .product-card',
+        '[class*="product"]',
+        'h1, h2, h3',
+        '[itemprop="name"]',
+        '.price, [class*="price"]'
+      ];
+      
+      for (const selector of genericSelectors) {
+        try {
+          await page.waitForSelector(selector, { timeout: 4000 });
+          criticalContentFound = true;
+          break;
+        } catch (e) {}
+      }
+      
+      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      strategy = 'generic_optimized_v4';
+    }
+    
+    // ========================================
+    // 📊 المستوى 2: التحقق النهائي المحسّن
+    // ========================================
+    const finalCheck = await page.evaluate(() => {
+      // إحصاءات المنتجات
+      const productElements = document.querySelectorAll(
+        '.product, .product-item, .product-card, [data-product-id], .s-block-product-card, .z-product-card'
+      );
+      
+      const links = document.querySelectorAll('a[href]').length;
+      const hasH1 = document.querySelector('h1') !== null;
+      
+      // التحقق من محتوى حقيقي
+      const hasRealContent = document.querySelector('h1') ? 
+        (document.querySelector('h1')!.textContent!.trim().length > 3) : false;
+      
+      return { 
+        products: productElements.length, 
+        links, 
+        hasH1,
+        hasRealContent
+      };
+    });
+    
+    productsDetected = finalCheck.products;
+    
+    console.log(`  [Task ${taskNum}] 📊 Final check: Products=${finalCheck.products}, Links=${finalCheck.links}, RealContent=${finalCheck.hasRealContent}`);
+    
+    const timeSpent = Date.now() - startTime;
+    const contentQuality = finalCheck.products > 0 ? 95 : 
+                          finalCheck.hasRealContent ? 80 : 
+                          finalCheck.links >= 5 ? 60 : 30;
+    
+    return {
+      success: finalCheck.products > 0 || finalCheck.links >= 3 || finalCheck.hasRealContent,
+      strategy,
+      timeSpent,
+      linksFound: finalCheck.links,
+      contentQuality,
+      criticalContentFound: finalCheck.products > 0 || criticalContentFound,
+      productsDetected: finalCheck.products
+    };
+    
+  } catch (error) {
+    console.log(`  [Task ${taskNum}] ⚠️ Wait strategy error: ${error}`);
+    return {
+      success: false,
+      strategy: 'fallback',
+      timeSpent: Date.now() - startTime,
+      linksFound: 0,
+      contentQuality: 10,
+      criticalContentFound: false,
+      productsDetected: 0
+    };
+  }
+}
+
+// ============================================
+// 🔥 دوال الاستخراج المحسنة (Ultimate Edition)
+// ============================================
+
+interface PageClassification {
+  category: string;
+  confidence: number;
+  signals: string[];
+  platform?: "salla" | "zid" | "nextjs" | "generic";
+}
+
+interface CrawlGoals {
+  storeName: boolean;
+  shipping: boolean;
+  returns: boolean;
+  products: number;
+}
+
+interface SupabaseDocument {
+  project_id: string;
+  content: string;
+  metadata: object;
+  embedding: number[];
+}
+
+interface ExtractionDiagnostics {
+  url: string;
+  platform: string;
+  classification: string;
+  confidence: number;
+  waitStrategy: string;
+  htmlLength: number;
+  strategiesAttempted: string[];
+  productsFound: number;
+  extractionTime: number;
+  issues: string[];
+}
+
+// 🧠 V4.1: نظام التعلم الذكي الجديد
+interface ProductStructurePattern {
+  nameSelectors: string[];
+  descriptionSelectors: string[];
+  containerSelectors: string[];
+  confidence: number;
+  learnedFrom: string;
+  platform: string;
+}
+
+// 🔥 V4.1: محلل الهيكل الذكي
+class SmartStructureAnalyzer {
+  private patterns: Map<string, ProductStructurePattern> = new Map();
+  
+  analyzeProductPage($: cheerio.CheerioAPI, url: string, platform: string): ProductStructurePattern {
+    console.log(`  [Structure Analyzer] 🔬 Analyzing product page structure...`);
+    
+    const pattern: ProductStructurePattern = {
+      nameSelectors: [],
+      descriptionSelectors: [],
+      containerSelectors: [],
+      confidence: 0,
+      learnedFrom: url,
+      platform
+    };
+
+    // 🔍 اكتشاف محددات الاسم
+    const potentialNameSelectors = [
+      'h1[itemprop="name"]',
+      '.product-title',
+      '.product-name', 
+      '.product_title',
+      '[data-product-name]',
+      '.title',
+      '.name',
+      'h1'
+    ];
+
+    potentialNameSelectors.forEach(selector => {
+      const elements = $(selector);
+      if (elements.length > 0) {
+        const text = elements.first().text().trim();
+        if (text && text.length > 3 && !this.isGenericText(text)) {
+          pattern.nameSelectors.push(selector);
+          console.log(`  [Structure Analyzer] ✅ Name selector: ${selector} - "${text.substring(0, 30)}..."`);
+        }
+      }
+    });
+
+    // 🔍 اكتشاف محددات الوصف
+    const potentialDescSelectors = [
+      '[itemprop="description"]',
+      '.product-description',
+      '.description',
+      '.product-details',
+      '.product-info',
+      '.desc',
+      '.content',
+      '.details'
+    ];
+
+    potentialDescSelectors.forEach(selector => {
+      const elements = $(selector);
+      if (elements.length > 0) {
+        const text = elements.first().text().trim();
+        if (text && text.length > 20 && !this.isGenericText(text)) {
+          pattern.descriptionSelectors.push(selector);
+          console.log(`  [Structure Analyzer] ✅ Description selector: ${selector} - "${text.substring(0, 50)}..."`);
+        }
+      }
+    });
+
+    // 🔍 اكتشاف محددات الحاوية
+    const potentialContainerSelectors = [
+      '.product-details',
+      '.product-info',
+      '.product-container',
+      '.product-page',
+      '.product-main',
+      '.details-container',
+      '.product-content'
+    ];
+
+    potentialContainerSelectors.forEach(selector => {
+      if ($(selector).length > 0) {
+        pattern.containerSelectors.push(selector);
+        console.log(`  [Structure Analyzer] ✅ Container selector: ${selector}`);
+      }
+    });
+
+    // 📊 حساب الثقة
+    pattern.confidence = this.calculateConfidence(pattern);
+    console.log(`  [Structure Analyzer] 📊 Analysis confidence: ${pattern.confidence}%`);
+
+    // حفظ النمط
+    const key = `${platform}_product`;
+    this.patterns.set(key, pattern);
+
+    return pattern;
+  }
+
+  private isGenericText(text: string): boolean {
+    const genericPatterns = [
+      /^(home|main|page|website|site|web|menu|navigation|nav)$/i,
+      /^(رئيسية|الرئيسية|متجر|منتج|منتجات|عرض|خصم)$/i,
+      /^\s*$/
+    ];
+    return genericPatterns.some(pattern => pattern.test(text));
+  }
+
+  private calculateConfidence(pattern: ProductStructurePattern): number {
+    let score = 0;
+    
+    if (pattern.nameSelectors.length > 0) score += 40;
+    if (pattern.descriptionSelectors.length > 0) score += 40;
+    if (pattern.containerSelectors.length > 0) score += 20;
+    
+    // مكافأة للأنماط المتعددة
+    if (pattern.nameSelectors.length > 1) score += 10;
+    if (pattern.descriptionSelectors.length > 1) score += 10;
+    
+    return Math.min(score, 100);
+  }
+
+  getPattern(platform: string): ProductStructurePattern | null {
+    return this.patterns.get(`${platform}_product`) || null;
+  }
+
+  hasPattern(platform: string): boolean {
+    return this.patterns.has(`${platform}_product`);
+  }
+}
+
+// إنشاء محلل عالمي
+const structureAnalyzer = new SmartStructureAnalyzer();
+
+// 🔥 V4.1: استخراج ذكي باستخدام الأنماط المتعلمة
+function extractWithLearnedPatterns(
+  $: cheerio.CheerioAPI, 
+  platform: string,
+  isSingleProduct: boolean = false
+): Array<{ name: string; description: string }> {
+  
+  const products: Array<{ name: string; description: string }> = [];
+  const pattern = structureAnalyzer.getPattern(platform);
+  
+  if (!pattern) {
+    console.log(`  [Smart Extractor] ⚠️ No learned patterns for ${platform}`);
+    return products;
+  }
+
+  console.log(`  [Smart Extractor] 🧠 Using learned patterns (confidence: ${pattern.confidence}%)`);
+
+  if (isSingleProduct) {
+    // استخراج منتج فردي
+    let name = '';
+    let description = '';
+
+    // استخدام محددات الاسم المتعلمة
+    for (const selector of pattern.nameSelectors) {
+      name = $(selector).first().text().trim();
+      if (name && name.length > 3) {
+        console.log(`  [Smart Extractor] ✅ Name from selector: ${selector}`);
+        break;
+      }
+    }
+
+    // استخدام محددات الوصف المتعلمة
+    for (const selector of pattern.descriptionSelectors) {
+      description = $(selector).first().text().trim();
+      if (description && description.length > 20) {
+        console.log(`  [Smart Extractor] ✅ Description from selector: ${selector}`);
+        break;
+      }
+    }
+
+    // 🔥 الشرط الصارم: يجب وجود وصف حقيقي
+    if (name && hasRealDescription(description)) {
+      products.push({
+        name: cleanProductName(name),
+        description: cleanProductDescription(description)
+      });
+      console.log(`  [Smart Extractor] 🎯 SUCCESS: Product "${name.substring(0, 30)}..." with valid description`);
+    } else {
+      console.log(`  [Smart Extractor] ❌ REJECTED: Product "${name.substring(0, 30)}..." - No valid description`);
+    }
+
+  } else {
+    // استخراج منتجات متعددة من صفحة فئة
+    const containerSelectors = pattern.containerSelectors.length > 0 
+      ? pattern.containerSelectors 
+      : ['.product', '.product-item', '.product-card'];
+
+    containerSelectors.forEach(containerSelector => {
+      $(containerSelector).each((i, element) => {
+        const $el = $(element);
+        let name = '';
+        let description = '';
+
+        // استخدام محددات الاسم المتعلمة داخل الحاوية
+        for (const nameSelector of pattern.nameSelectors) {
+          name = $el.find(nameSelector).first().text().trim();
+          if (name && name.length > 3) break;
+        }
+
+        // استخدام محددات الوصف المتعلمة داخل الحاوية
+        for (const descSelector of pattern.descriptionSelectors) {
+          description = $el.find(descSelector).first().text().trim();
+          if (description && description.length > 20) break;
+        }
+
+        // 🔥 الشرط الصارم: يجب وجود وصف حقيقي
+    if (name && hasRealDescription(description)) {
+          const cleanName = cleanProductName(name);
+          const cleanDesc = cleanProductDescription(description);
+          
+          // تجنب التكرار
+          if (!products.some(p => p.name === cleanName)) {
+            products.push({ name: cleanName, description: cleanDesc });
+            console.log(`  [Smart Extractor] ✅ Product: ${cleanName.substring(0, 30)}...`);
+          }
+        }
+      });
+    });
+  }
+
+  console.log(`  [Smart Extractor] 📊 Extracted ${products.length} products with valid descriptions`);
+  return products;
+}
+
+// 🔥 V4.1: التحقق من وجود وصف حقيقي
+function hasRealDescription(description: string): boolean {
+  if (!description) return false;
+  
+  const cleanDesc = description.trim();
+  
+  // يجب أن يكون الوصف بطول معقول
+  if (cleanDesc.length < 15) return false;
+  
+  // يجب ألا يكون نصاً عاماً
+  const genericDescriptions = [
+    'منتج من المتجر',
+    'منتج من متجر سلة', 
+    'منتج من متجر زد',
+    'منتج بسعر',
+    'product',
+    'item',
+    'منتج'
+  ];
+  
+  if (genericDescriptions.some(gen => cleanDesc.includes(gen))) {
+    return false;
+  }
+  
+  // يجب أن يحتوي على محتوى حقيقي
+  const wordCount = cleanDesc.split(/\s+/).length;
+  return wordCount >= 3;
+}
+
+// 🔥 V4.0: إنشاء تقرير تشخيصي
+function createDiagnosticReport(
+  taskNum: number,
+  diagnostics: ExtractionDiagnostics
+): void {
+  console.log(`\n📋 [DIAGNOSTIC REPORT - Task ${taskNum}]`);
+  console.log(`📍 URL: ${diagnostics.url}`);
+  console.log(`🏪 Platform: ${diagnostics.platform}`);
+  console.log(`📄 Classification: ${diagnostics.classification} (${diagnostics.confidence}%)`);
+  console.log(`⏱️ Wait Strategy: ${diagnostics.waitStrategy}`);
+  console.log(`📊 HTML Size: ${diagnostics.htmlLength} chars`);
+  console.log(`🔧 Strategies: ${diagnostics.strategiesAttempted.join(', ')}`);
+  console.log(`🛍️ Products Found: ${diagnostics.productsFound}`);
+  console.log(`⏰ Extraction Time: ${diagnostics.extractionTime}ms`);
+  
+  if (diagnostics.issues.length > 0) {
+    console.log(`🚨 Issues:`);
+    diagnostics.issues.forEach(issue => console.log(`   - ${issue}`));
+  }
+  console.log(`🔚 [END REPORT]\n`);
+}
+
+// 🔥 V4.0: استخراج محسن لاسم المتجر
+function extractStoreName(
+  $: cheerio.CheerioAPI,
+  platform: PageClassification["platform"]
+): string {
+  let storeName = "";
+
+  // استخراج من Open Graph أولاً
+  storeName = $("meta[property='og:site_name']").attr("content") || "";
+
+  // إذا لم يوجد، جرب العنوان
+  if (!storeName) {
+    storeName = $("title")
+      .text()
+      .split(/[|\-–—]/)[0]
+      .trim();
+  }
+
+  // تنظيف شامل وشديد
+  storeName = storeName
+    .replace(
+      /(search|cart|arrow|menu|login|account|home|main|page|website|site|web|keyboard|right|left|share|star|rating|review|تقييم|نجوم)/gi,
+      ""
+    )
+    .replace(/[^\w\u0600-\u06FF\s\-&.,]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return storeName.length > 2 && storeName.length < 100 ? storeName : "";
+}
+
+// 🔥 V4.0: تنظيف اسم المنتج
+function cleanProductName(name: string): string {
+  return name
+    .replace(/(متجر|رئيسية|الرئيسية|store|home|عرض|خصم|جديد)/gi, "")
+    .replace(/[^\w\u0600-\u06FF\s\-&.,]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// 🔥 V4.0: تنظيف وصف المنتج
+function cleanProductDescription(description: string): string {
+  return description
+    .replace(/(star|rating|review|تقييم|نجوم|\*)/gi, "")
+    .replace(/[\d]+\s*تقييم/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// 🔥 V4.1: استخراج منتجات من Salla - مع الشرط الصارم
+function extractProductsFromSalla($: cheerio.CheerioAPI): Array<{ name: string; description: string }> {
+  const products: Array<{ name: string; description: string }> = [];
+  
+  console.log("  [Salla Extractor] 🏪 Starting Salla-specific extraction...");
+  
+  // 🎯 محددات Salla الحقيقية
+  const sallaSelectors = [
+    '.s-block-product-card',
+    '.s-product-card-entry', 
+    '[data-product-id]',
+    '.product-entry',
+    '.product-block',
+    'article[data-product]',
+  ];
+  
+  sallaSelectors.forEach(selector => {
+    const elements = $(selector);
+    console.log(`  [Salla Extractor] 🔍 Testing selector: ${selector} - Found: ${elements.length} elements`);
+    
+    elements.each((i, element) => {
+      const $el = $(element);
+      
+      // استخراج الاسم
+      const nameSelectors = [
+        '.s-block-product-card__name',
+        '.product-title',
+        'h3.product-name',
+        'h2',
+        '[itemprop="name"]',
+        '.s-block-product-card-entry__title',
+      ];
+      
+      let name = '';
+      for (const sel of nameSelectors) {
+        name = $el.find(sel).first().text().trim();
+        if (name && name.length > 3) break;
+      }
+      
+      // استخراج الوصف
+      const descSelectors = [
+        '.s-block-product-card__description',
+        '.product-description',
+        '[itemprop="description"]',
+        '.product-excerpt',
+      ];
+      
+      let description = '';
+      for (const sel of descSelectors) {
+        description = $el.find(sel).first().text().trim();
+        if (description && description.length > 20) break;
+      }
+      
+      // 🔥 الشرط الصارم: يجب وجود وصف حقيقي
+      if (name && hasRealDescription(description)) {
+        const cleanName = cleanProductName(name);
+        const cleanDesc = cleanProductDescription(description);
+        
+        // تجنب التكرار
+        if (!products.some(p => p.name === cleanName)) {
+          products.push({ name: cleanName, description: cleanDesc });
+          console.log(`  [Salla Extractor] ✅ Product: ${cleanName.substring(0, 40)}...`);
+        }
+      } else {
+        console.log(`  [Salla Extractor] ❌ Skipped product - No valid description`);
+      }
+    });
+  });
+  
+  console.log(`  [Salla Extractor] 📊 Total extracted: ${products.length} products with valid descriptions`);
+  return products.slice(0, 25);
+}
+
+// 🔥 V4.1: استخراج منتجات من Zid - مع الشرط الصارم
+function extractProductsFromZid($: cheerio.CheerioAPI): Array<{ name: string; description: string }> {
+  const products: Array<{ name: string; description: string }> = [];
+  
+  console.log("  [Zid Extractor] 🏪 Starting Zid-specific extraction...");
+  
+  const zidSelectors = [
+    '.z-product-card',
+    '[data-zid-product]',
+    '.product-item',
+    'article.product',
+  ];
+  
+  zidSelectors.forEach(selector => {
+    $(selector).each((i, element) => {
+      const $el = $(element);
+      
+      const name = $el.find('.z-product-card__title, h3, h2').first().text().trim();
+      const description = $el.find('.z-product-card__description, .description').first().text().trim();
+      
+      // 🔥 الشرط الصارم: يجب وجود وصف حقيقي
+      if (name && name.length > 3 && hasRealDescription(description)) {
+        const cleanName = cleanProductName(name);
+        const cleanDesc = cleanProductDescription(description) || 'منتج من متجر زد';
+        
+        if (!products.some(p => p.name === cleanName)) {
+          products.push({ 
+            name: cleanName, 
+            description: cleanDesc 
+          });
+          console.log(`  [Zid Extractor] ✅ Product: ${name.substring(0, 40)}...`);
+        }
+      } else {
+        console.log(`  [Zid Extractor] ❌ Skipped product - No valid description`);
+      }
+    });
+  });
+  
+  return products.slice(0, 25);
+}
+
+// 🔥 V4.1: استراتيجية استخراج ذكية مع التعلم
+function intelligentProductExtraction(
+  $: cheerio.CheerioAPI, 
+  platform: string,
+  url: string,
+  taskNum: number,
+  classification: PageClassification
+): Array<{name: string; description: string}> {
+  
+  console.log(`  [Task ${taskNum}] 🧠 Starting intelligent extraction...`);
+  
+  const allProducts: Array<{name: string; description: string}> = [];
+  const seenNames = new Set<string>();
+
+  // 🎯 الاستراتيجية 1: استخدام الأنماط المتعلمة (الأفضل)
+  if (structureAnalyzer.hasPattern(platform)) {
+    console.log(`  [Task ${taskNum}] 🧠 Using learned patterns...`);
+    const smartProducts = extractWithLearnedPatterns($, platform, classification.category === 'product_page');
+    
+    smartProducts.forEach(product => {
+      if (!seenNames.has(product.name)) {
+        seenNames.add(product.name);
+        allProducts.push(product);
+      }
+    });
+    
+    if (smartProducts.length > 0) {
+      console.log(`  [Task ${taskNum}] 🎉 Smart extraction found ${smartProducts.length} products`);
+      return allProducts.slice(0, 25);
+    }
+  }
+
+  // 🎯 الاستراتيجية 2: استخراج منتج فردي من صفحة منتج
+  if (classification.category === "product_page") {
+    console.log(`  [Task ${taskNum}] 🎯 Single product page - using dedicated extractor...`);
+    const singleProduct = extractSingleProductInfo($, classification.platform);
+    
+    // 🔥 الشرط الصارم: يجب وجود وصف حقيقي
+    if (singleProduct.name && hasRealDescription(singleProduct.description)) {
+      allProducts.push({
+        name: cleanProductName(singleProduct.name),
+        description: cleanProductDescription(singleProduct.description)
+      });
+      console.log(`  [Task ${taskNum}] ✅ Single product extracted: ${singleProduct.name.substring(0, 40)}...`);
+    } else {
+      console.log(`  [Task ${taskNum}] ❌ Single product extraction failed - no valid description`);
+    }
+    
+    if (allProducts.length > 0) {
+      return allProducts;
+    }
+  }
+
+  // 🎯 الاستراتيجية 3: استخراج تقليدي مع الشرط الصارم
+  console.log(`  [Task ${taskNum}] 🔧 Falling back to traditional extraction...`);
+  
+  const traditionalStrategies = [
+    {
+      name: "platform_specific",
+      execute: () => {
+        if (platform === 'salla') return extractProductsFromSalla($);
+        if (platform === 'zid') return extractProductsFromZid($);
+        return [];
+      }
+    },
+    {
+      name: "category_page_extraction", 
+      execute: () => {
+        const products: Array<{name: string; description: string}> = [];
+        
+        $('.products-grid, .product-list, .items-grid, [class*="products"]').each((i, container) => {
+          $(container).find('.product, .item, [class*="product-"]').each((j, product) => {
+            const $product = $(product);
+            const name = $product.find('h3, h4, .title, .name, [class*="title"]').first().text().trim();
+            const description = $product.find('.desc, .description, .excerpt').first().text().trim();
+            
+            // 🔥 الشرط الصارم
+            if (name && hasRealDescription(description)) {
+              products.push({
+                name: cleanProductName(name),
+                description: cleanProductDescription(description)
+              });
+            }
+          });
+        });
+        
+        return products;
+      }
+    }
+  ];
+
+  for (const strategy of traditionalStrategies) {
+    try {
+      console.log(`  [Task ${taskNum}] 🔧 Trying strategy: ${strategy.name}`);
+      const strategyProducts = strategy.execute();
+      
+      strategyProducts.forEach(product => {
+        if (!seenNames.has(product.name)) {
+          seenNames.add(product.name);
+          allProducts.push(product);
+        }
+      });
+      
+      if (strategyProducts.length > 0) {
+        console.log(`  [Task ${taskNum}] 🎉 Strategy ${strategy.name} found ${strategyProducts.length} products`);
+      }
+      
+    } catch (error) {
+      console.log(`  [Task ${taskNum}] ⚠️ Strategy ${strategy.name} failed: ${error}`);
+    }
+  }
+  
+  console.log(`  [Task ${taskNum}] 📊 Total extracted: ${allProducts.length} products with valid descriptions`);
+  return allProducts.slice(0, 25);
+}
+
+// 🔥 V4.1: استخراج منتج واحد محسن مع الشرط الصارم
+function extractSingleProductInfo(
+  $: cheerio.CheerioAPI,
+  platform: PageClassification["platform"]
+): { name: string; description: string } {
+  
+  console.log(`  [Single Product Extractor] 🚀 Starting extraction... Platform: ${platform}`);
+  
+  let name = "";
+  let description = "";
+
+  try {
+    const jsonLdScript = $("script[type='application/ld+json']");
+    for (let i = 0; i < jsonLdScript.length; i++) {
+      const scriptContent = $(jsonLdScript[i]).html();
+      if (scriptContent && scriptContent.includes('"@type":"Product"')) {
+        const productJson = JSON.parse(scriptContent);
+        const productData = Array.isArray(productJson)
+          ? productJson.find((item: any) => item["@type"] === "Product")
+          : productJson;
+
+        if (productData && productData.name) {
+          name = productData.name;
+          description = productData.description || "";
+          if (name && hasRealDescription(description)) {
+            console.log("  [Single Product Extractor] ✅ Extracted from JSON-LD");
+            return {
+              name: cleanProductName(name),
+              description: cleanProductDescription(description),
+            };
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.log("  [Single Product Extractor] ⚠️ Could not parse JSON-LD");
+  }
+
+  // تحديد حاوية المنتج الرئيسية أولاً
+  const productContainers = [
+    ".product-details",
+    ".product-info", 
+    ".product-container",
+    ".product-page",
+    ".product-detail",
+    ".product__info",
+    ".product__details",
+    ".product-main",
+    ".product-content",
+    ".product-summary",
+    ".details-container",
+    ".z-product-page",
+  ];
+
+  let productContainer: ReturnType<typeof $> | null = null;
+  for (const container of productContainers) {
+    const containerElement = $(container).first();
+    if (containerElement.length > 0) {
+      productContainer = containerElement;
+      console.log(`  [Single Product Extractor] 🔍 Found product container: ${container}`);
+      break;
+    }
+  }
+
+  if (platform === "salla") {
+    name = $(".details-container h1.product-title").text().trim();
+    if (!name && productContainer) {
+      name = productContainer
+        .find("h1.product-title, h1")
+        .first()
+        .text()
+        .trim();
+    }
+    description = $(".product-description").text().trim();
+    if (!description && productContainer) {
+      description = productContainer
+        .find(".product-description, .description")
+        .first()
+        .text()
+        .trim();
+    }
+    if (name && hasRealDescription(description)) {
+      console.log("  [Single Product Extractor] ✅ Extracted using Salla-specific selectors");
+      return {
+        name: cleanProductName(name),
+        description: cleanProductDescription(description),
+      };
+    }
+  } else if (platform === "zid") {
+    name = $(".z-product-page__title-text").text().trim();
+    if (!name && productContainer) {
+      name = productContainer
+        .find(".z-product-page__title-text, h1")
+        .first()
+        .text()
+        .trim();
+    }
+    description = $(".z-product-page__description").text().trim();
+    if (!description && productContainer) {
+      description = productContainer
+        .find(".z-product-page__description, .description")
+        .first()
+        .text()
+        .trim();
+    }
+    if (name && hasRealDescription(description)) {
+      console.log("  [Single Product Extractor] ✅ Extracted using Zid-specific selectors");
+      return {
+        name: cleanProductName(name),
+        description: cleanProductDescription(description),
+      };
+    }
+  }
+
+  // البحث داخل حاوية المنتج أولاً
+  if (!name && productContainer) {
+    name = productContainer
+      .find("h1[itemprop='name'], .product-title, .product-name, h1")
+      .first()
+      .text()
+      .trim();
+  }
+  if (!description && productContainer) {
+    description = productContainer
+      .find("[itemprop='description'], .product-description, .description")
+      .first()
+      .text()
+      .trim();
+  }
+
+  // الاستراتيجية العدوانية فقط إذا فشل الاستخراج من الحاوية
+  if (!name) {
+    name = $("h1[itemprop='name'], .product-title, .product-name, h1")
+      .first()
+      .text()
+      .trim();
+  }
+  if (!description) {
+    description = $(
+      "[itemprop='description'], .product-description, .description"
+    )
+      .first()
+      .text()
+      .trim();
+  }
+
+  if (!name) {
+    name = $("h1, [class*='title'] h1, [class*='product'] h1")
+      .first()
+      .text()
+      .trim();
+  }
+  if (!description) {
+    // البحث في النصوص الطويلة فقط داخل المحتوى الرئيسي
+    const mainContent = $(
+      "main, article, [role='main'], .main-content"
+    ).first();
+    const possibleDesc = mainContent
+      .find("p, [class*='desc'], [class*='detail'], [class*='info']")
+      .map((i, el) => $(el).text().trim())
+      .get()
+      .filter(
+        (text) =>
+          text.length > 50 &&
+          text.length < 2000 &&
+          !text.includes("©") &&
+          !text.includes("سياسة") &&
+          !text.match(/star|rating|review|تقييم|نجوم/i)
+      )
+      .slice(0, 3)
+      .join(" ");
+    if (possibleDesc) description = possibleDesc;
+  }
+
+  if (!name) {
+    name =
+      $("meta[property='og:title']").attr("content") ||
+      $("title")
+        .text()
+        .split(/[|\-–—]/)[0]
+        .trim();
+  }
+  if (!description) {
+    description =
+      $("meta[property='og:description']").attr("content") ||
+      $("meta[name='description']").attr("content") ||
+      "";
+  }
+
+  const result = {
+    name: cleanProductName(name),
+    description: cleanProductDescription(description),
+  };
+
+  // 🔥 الشرط الصارم النهائي
+  if (!hasRealDescription(result.description)) {
+    console.log(`  [Single Product Extractor] ❌ REJECTED: No valid description for product`);
+    return { name: "", description: "" };
+  }
+
+  return result;
+}
+
+// 🔥 V4.0: تصنيف صفحات محسّن
+function intelligentPageClassifierV4(
+  url: string,
+  html: string
+): PageClassification {
+  const $ = cheerio.load(html);
+  const decodedUrl = decodeURIComponent(url).toLowerCase();
+  const pageText = $("body").text().toLowerCase();
+  const title = $("title").text().toLowerCase();
+  const signals: string[] = [];
+  let platform: PageClassification["platform"] = "generic";
+
+  // كشف المنصة المحسن
+  if (
+    html.includes("salla.sa") ||
+    html.includes("salla-bundle") ||
+    $('script[src*="salla"]').length > 0
+  ) {
+    platform = "salla";
+    signals.push("platform_salla");
+  } else if ($("script[src*='zid.sa']").length > 0) {
+    platform = "zid";
+    signals.push("platform_zid");
+  } else if ($("script#__NEXT_DATA__").length > 0) {
+    platform = "nextjs";
+    signals.push("platform_nextjs");
+  }
+
+  // 🔥 V4.0: كشف الصفحة الرئيسية بدون منع استخراج المنتجات
+  const isHomePage =
+    decodedUrl === "https://ryefal.com/" ||
+    decodedUrl === "https://ryefal.com" ||
+    $('body[class*="home"], [class*="home-page"]').length > 0;
+
+  if (isHomePage) {
+    return {
+      category: "home_page",
+      confidence: 100,
+      signals: ["home_page_detected"],
+      platform,
+    };
+  }
+
+  // 🔥 V4.0: تحسين كبير في كشف المنتجات
+  const productScoreRules = [
+    // أنماط URLs لمنصة Salla - أكثر تحديداً
+    {
+      test: () => decodedUrl.match(/\/product\/[a-zA-Z0-9-]+\/[0-9]+/),
+      weight: 80,
+      signal: "salla_product_url_pattern",
+    },
+    {
+      test: () =>
+        decodedUrl.includes("/product/") &&
+        !decodedUrl.includes("/categories/"),
+      weight: 70,
+      signal: "product_url",
+    },
+
+    // محددات Salla المحددة - أكثر دقة
+    {
+      test: () =>
+        platform === "salla" &&
+        $(".product-details").length > 0 &&
+        $(".product-details h1").length > 0,
+      weight: 85,
+      signal: "salla_product_details_with_title",
+    },
+    {
+      test: () =>
+        platform === "salla" &&
+        $("[data-product-id]").length > 0 &&
+        $("h1").length > 0,
+      weight: 80,
+      signal: "salla_product_data_with_title",
+    },
+
+    // التأكد من وجود اسم ووصف حقيقي للمنتج
+    {
+      test: () => {
+        const productName = $("h1").first().text().trim();
+        return (
+          productName &&
+          productName.length > 5 &&
+          !productName.match(/^(متجر|رئيسية|الرئيسية)$/i)
+        );
+      },
+      weight: 60,
+      signal: "valid_product_name",
+    },
+
+    // محددات عامة محسنة
+    {
+      test: () => $("meta[property='og:type'][content='product']").length > 0,
+      weight: 75,
+      signal: "og_product",
+    },
+    {
+      test: () =>
+        $("script[type='application/ld+json']")
+          .text()
+          .includes('"@type":"Product"'),
+      weight: 90,
+      signal: "json_ld_product",
+    },
+    {
+      test: () =>
+        $(".add-to-cart, #add-to-cart, [class*='add-to-cart']").length > 0 &&
+        $(".price").length > 0,
+      weight: 65,
+      signal: "add_to_cart_with_price",
+    },
+    {
+      test: () => $(".price, [class*='price']").length > 0,
+      weight: 45,
+      signal: "price_element",
+    },
+  ];
+
+  const productScore = productScoreRules.reduce((score, rule) => {
+    if (rule.test()) {
+      signals.push(rule.signal);
+      return score + rule.weight;
+    }
+    return score;
+  }, 0);
+
+  // تصنيف صفحات الفئات محسّن
+  const categoryScoreRules = [
+    {
+      test: () =>
+        decodedUrl.match(
+          /\/(categories?|category|collections?|collection|shop|store|متجر|فئات|مجموعات)\//
+        ),
+      weight: 60,
+      signal: "category_url_pattern",
+    },
+    {
+      test: () => $("[class*='category'], [class*='collection']").length > 0,
+      weight: 40,
+      signal: "category_classes",
+    },
+    {
+      test: () =>
+        $(".products-grid, .product-list, .items-grid, [class*='products']")
+          .length > 0,
+      weight: 70,
+      signal: "product_list_container",
+    },
+    {
+      test: () =>
+        $(".product-item, .product-card, [class*='product-']").length >= 3,
+      weight: 80,
+      signal: "multiple_product_items",
+    },
+  ];
+  const categoryScore = categoryScoreRules.reduce((score, rule) => {
+    if (rule.test()) {
+      signals.push(rule.signal);
+      return score + rule.weight;
+    }
+    return score;
+  }, 0);
+
+  // تصنيف صفحات الشحن والإرجاع
+  const shippingKeywords = [
+    "شحن",
+    "توصيل",
+    "shipping",
+    "delivery",
+    "dispatch",
+    "courier",
+    "الشحن",
+    "التوصيل",
+  ];
+  const shippingScore = [
+    {
+      test: () => shippingKeywords.some((k) => decodedUrl.includes(k)),
+      weight: 50,
+      signal: "shipping_url",
+    },
+    {
+      test: () => shippingKeywords.some((k) => title.includes(k)),
+      weight: 45,
+      signal: "shipping_title",
+    },
+  ].reduce(
+    (score, s) =>
+      s.test() ? (signals.push(s.signal), score + s.weight) : score,
+    0
+  );
+
+  const returnKeywords = [
+    "return",
+    "refund",
+    "استرجاع",
+    "استبدال",
+    "exchange",
+    "رجوع",
+    "إرجاع",
+    "الاسترجاع",
+    "الاستبدال",
+  ];
+  const returnScore = [
+    {
+      test: () => returnKeywords.some((k) => decodedUrl.includes(k)),
+      weight: 50,
+      signal: "return_url",
+    },
+    {
+      test: () => returnKeywords.some((k) => title.includes(k)),
+      weight: 45,
+      signal: "return_title",
+    },
+  ].reduce(
+    (score, s) =>
+      s.test() ? (signals.push(s.signal), score + s.weight) : score,
+    0
+  );
+
+  // أنماط التجاهل
+  const ignorePatterns = [
+    /\/(cart|checkout|login|register|account|profile|wishlist|password)/i,
+    /\/(سلة|سلتي|حسابي|الدفع|تسجيل|مقارنة|المفضلة)/,
+    /\/(blogs|contact|about|faq)/i,
+    /\.(pdf|jpg|jpeg|png|gif|svg|css|js|json|xml)$/i,
+  ];
+  if (ignorePatterns.some((p) => p.test(decodedUrl))) {
+    return {
+      category: "ignore",
+      confidence: 100,
+      signals: ["ignore_pattern"],
+      platform,
+    };
+  }
+
+  const scores = [
+    { category: "product_page", score: productScore },
+    { category: "category_page", score: categoryScore },
+    { category: "shipping", score: shippingScore },
+    { category: "returns", score: returnScore },
+  ];
+  const best = scores.reduce((max, curr) =>
+    curr.score > max.score ? curr : max
+  );
+
+  // قاعدة حاسمة للتمييز بين صفحة المنتج والفئة
+const productItemsCount = $(".product-item, .product-card, [class*='product-']").length;
+if (productItemsCount > 2) {
+    // إذا كان هناك العديد من عناصر المنتجات، فهذه صفحة فئة بالتأكيد.
+    // تجاهل أي درجة لصفحة المنتج وأعط الأولوية للفئة.
+    if (best.category === 'product_page') {
+        console.log(`  [Classifier Fix] ⚠️ Corrected classification from 'product_page' to 'category_page' due to multiple items (${productItemsCount}).`);
+        // ابحث عن ثاني أفضل نتيجة (والتي ستكون على الأرجح 'category_page')
+        const secondBest = scores.filter(s => s.category !== 'product_page').reduce((max, curr) => curr.score > max.score ? curr : max);
+        if (secondBest.score > 0) {
+            return {
+                category: secondBest.category,
+                confidence: Math.min(100, secondBest.score),
+                signals,
+                platform,
+            };
+        }
+    }
+}
+
+  // 🔥 V4.0: عتبات أكثر ذكاءً
+  if (best.score >= 60) {
+    return {
+      category: best.category,
+      confidence: Math.min(100, best.score),
+      signals,
+      platform,
+    };
+  }
+  return {
+    category: "general",
+    confidence: 0,
+    signals: ["no_clear_match"],
+    platform,
+  };
+}
+
+
+function cleanContent($: cheerio.CheerioAPI): string {
+  const unwantedSelectors = [
+    "script",
+    "style",
+    "noscript",
+    "iframe",
+    "nav",
+    "header",
+    "footer",
+    ".menu",
+    ".navigation",
+    ".advertisement",
+    ".ads",
+    ".social-share",
+    ".cookie-banner",
+    ".popup",
+    ".modal",
+  ];
+  unwantedSelectors.forEach((selector) => $(selector).remove());
+  let mainContent = $(
+    'main, article, [role="main"], .main-content, .content, #content, .product-details, .page-content'
+  )
+    .first()
+    .text();
+  if (!mainContent || mainContent.length < 100) mainContent = $("body").text();
+  return mainContent
+    .replace(/\s+/g, " ")
+    .replace(/[\n\r]+/g, "\n")
+    .trim();
+}
+
+// ============================================
+// 🚀 نقطة الدخول الرئيسية المحسنة - v4.1
+// ============================================
+export async function POST(request: Request) {
+  const startTime = Date.now();
+  let browser: Browser | null = null;
+
+  try {
+    const body = await request.json();
+    const { url: baseUrl, projectId } = body;
+
+    if (!baseUrl || !projectId) {
+      return NextResponse.json(
+        { error: "URL and projectId are required" },
+        { status: 400 }
+      );
+    }
+
+    // 🔥 تهيئة Supabase
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    console.log("[Supabase] Admin client initialized.");
+
+    console.log(
+      `\n${"=".repeat(60)}\n🧠 HYPER-CRAWLER v4.1 (AI-Powered Edition) 🧠`
+    );
+    console.log(
+      `📈 Goals: 1 Store Name, 1 Shipping, 1 Returns, 27 Products\n🔒 STRICT: Products must have valid descriptions\n${"=".repeat(60)}\n`
+    );
+
+    const MAX_CONCURRENT_TASKS = 5;
+    const GOAL_PATIENCE_THRESHOLD = 50;
+    const MAX_URL_QUEUE_SIZE = 300;
+
+    console.log("[Embeddings] Initializing HuggingFace embeddings...");
+    const langchainEmbeddings = new HuggingFaceTransformersEmbeddings({
+      modelName: "Xenova/multilingual-e5-base",
+    });
+
+    // 🔥 حذف البيانات القديمة من Supabase
+    console.log(`[Supabase] Deleting old documents for project: ${projectId}`);
+    const { error: deleteError } = await supabaseAdmin
+      .from("documents")
+      .delete()
+      .eq("project_id", projectId);
+
+    if (deleteError) {
+      console.error("[Supabase] Error deleting old documents:", deleteError);
+    } else {
+      console.log("[Supabase] Old documents deleted successfully.");
+    }
+
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--disable-dev-shm-usage", "--no-sandbox"],
+    });
+    const context = await browser.newContext({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    });
+    await context.route("**/*", (route) => {
+      if (
+        ["image", "stylesheet", "font", "media"].includes(
+          route.request().resourceType()
+        )
+      )
+        route.abort();
+      else route.continue();
+    });
+    console.log(`[Playwright] Browser is ready.`);
+
+    const goals: CrawlGoals = {
+      storeName: false,
+      shipping: false,
+      returns: false,
+      products: 0,
+    };
+    const urlsToVisit = new Map<string, number>([[baseUrl, 100]]);
+    const visitedUrls = new Set<string>();
+    let totalDocumentsProcessed = 0;
+    const waitStrategyStats = new Map<string, number>();
+    let patternLearningCompleted = false;
+
+    const processUrlTask = async (
+      url: string,
+      taskNum: number
+    ): Promise<void> => {
+      console.log(`  [Task ${taskNum}] ➡️  Visiting: ${url}`);
+      const page = await context.newPage();
+      let htmlContent: string | null = null;
+      const diagnostics: ExtractionDiagnostics = {
+        url,
+        platform: 'unknown',
+        classification: 'unknown',
+        confidence: 0,
+        waitStrategy: 'unknown',
+        htmlLength: 0,
+        strategiesAttempted: [],
+        productsFound: 0,
+        extractionTime: 0,
+        issues: []
+      };
+
+      try {
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
+
+        // 🎯 تطبيق نظام الانتظار الذكي
+        const waitResult = await intelligentWaitStrategyV4(page, url, taskNum);
+        
+        diagnostics.waitStrategy = waitResult.strategy;
+        diagnostics.platform = waitResult.strategy.includes('salla') ? 'salla' : 
+                              waitResult.strategy.includes('zid') ? 'zid' : 
+                              waitResult.strategy.includes('nextjs') ? 'nextjs' : 'generic';
+
+        waitStrategyStats.set(
+          waitResult.strategy,
+          (waitStrategyStats.get(waitResult.strategy) || 0) + 1
+        );
+
+        console.log(
+          `  [Task ${taskNum}] 📊 Wait Result: Strategy='${waitResult.strategy}', Time=${waitResult.timeSpent}ms, Products=${waitResult.productsDetected}`
+        );
+
+        // أخذ HTML بعد الانتظار
+        htmlContent = await page.content();
+        diagnostics.htmlLength = htmlContent.length;
+
+      } catch (error: any) {
+        console.error(
+          `  [Task ${taskNum}] ❌ Error during page processing: ${error.name}`
+        );
+        diagnostics.issues.push(`Page load error: ${error.name}`);
+        await page.close();
+        return;
+      }
+
+      await page.close();
+
+      const $ = cheerio.load(htmlContent!);
+
+      // 🔥 V4.1: نظام التعلم - تحليل أول صفحة منتج
+      const classification = intelligentPageClassifierV4(url, htmlContent!);
+      diagnostics.classification = classification.category;
+      diagnostics.confidence = classification.confidence;
+
+      console.log(
+        `  [Task ${taskNum}] 🕵️  Classification: '${classification.category}', Platform='${classification.platform}', Confidence=${classification.confidence}%`
+      );
+
+      if (classification.category === "ignore") return;
+
+      // 🧠 التعلم من أول صفحة منتج
+      if (classification.category === "product_page" && classification.platform && !patternLearningCompleted) {
+        console.log(`  [Task ${taskNum}] 🧠 LEARNING: Analyzing product page structure...`);
+        structureAnalyzer.analyzeProductPage($, url, classification.platform);
+        patternLearningCompleted = true;
+        console.log(`  [Task ${taskNum}] 🧠 LEARNING: Pattern analysis completed!`);
+      }
+
+      // 🔗 استخراج الروابط
+      $("a[href]").each((i, link) => {
+        if (urlsToVisit.size >= MAX_URL_QUEUE_SIZE) return;
+        try {
+          const href = $(link).attr("href");
+          if (!href) return;
+          const absoluteUrl = new URL(href, baseUrl)
+            .toString()
+            .split("#")[0]
+            .split("?")[0];
+          if (
+            absoluteUrl.startsWith(baseUrl) &&
+            !visitedUrls.has(absoluteUrl) &&
+            !urlsToVisit.has(absoluteUrl)
+          ) {
+            let priority = 1;
+            const linkText = $(link).text().toLowerCase();
+            const decodedUrl = decodeURIComponent(absoluteUrl).toLowerCase();
+
+            // أولوية عالية للسياسات
+            const policyPatterns = ['shipping', 'delivery', 'شحن', 'توصيل', 
+                                    'return', 'refund', 'استرجاع', 'استبدال', 
+                                    'policy', 'سياسة'];
+            
+            if (policyPatterns.some(p => decodedUrl.includes(p) || linkText.includes(p))) {
+              priority = 100;
+            }
+            
+            // أولوية عالية لصفحات المنتجات والفئات
+            else if (goals.products < 27) {
+              const isCategoryPage = 
+                decodedUrl.match(/\/(categories?|collections?|shop|store|products|متجر|أقسام|منتجات)/i) ||
+                linkText.match(/(categories?|collections?|shop|products|أقسام|منتجات)/i);
+              
+              if (isCategoryPage) priority = 98;
+              
+              const isProductPage = 
+                decodedUrl.match(/\/product\/[a-zA-Z0-9-]+\/[0-9]+/) ||
+                (decodedUrl.includes('/product/') && !decodedUrl.includes('/categories/'));
+              
+              if (isProductPage) priority = 95;
+              
+              if (decodedUrl === baseUrl || decodedUrl === baseUrl + '/') {
+                priority = 97;
+              }
+            }
+            
+            if (priority > 1) {
+              urlsToVisit.set(absoluteUrl, Math.max(urlsToVisit.get(absoluteUrl) || 0, priority));
+            }
+          }
+        } catch (e) {
+          // ignore invalid URLs
+        }
+      });
+
+      const documentsToEmbed: { content: string; metadata: any }[] = [];
+      const extractionStartTime = Date.now();
+
+      // 🔥 V4.1: استخراج اسم المتجر
+      if (!goals.storeName) {
+        const storeName = extractStoreName($, classification.platform);
+        if (storeName) {
+          const metadata = {
+            source: url,
+            category: "store_name",
+            projectId,
+            confidence: 90,
+            platform: classification.platform,
+          };
+          documentsToEmbed.push({
+            content: `اسم المتجر: ${storeName}`,
+            metadata,
+          });
+          console.log(`  [Task ${taskNum}] 🏪 Store Name Found: ${storeName}`);
+          goals.storeName = true;
+        }
+      }
+
+      // 🔥 V4.1: استخراج سياسات الشحن والإرجاع
+      if (classification.category === "shipping" && !goals.shipping) {
+        const cleanedContent = cleanContent($);
+        if (cleanedContent.length > 50) {
+          const metadata = {
+            source: url,
+            category: "shipping",
+            projectId,
+            confidence: classification.confidence,
+          };
+          documentsToEmbed.push({ content: cleanedContent, metadata });
+          goals.shipping = true;
+          console.log(`  [Task ${taskNum}] 📦 Shipping policy extracted`);
+        }
+      }
+      if (classification.category === "returns" && !goals.returns) {
+        const cleanedContent = cleanContent($);
+        if (cleanedContent.length > 50) {
+          const metadata = {
+            source: url,
+            category: "returns",
+            projectId,
+            confidence: classification.confidence,
+          };
+          documentsToEmbed.push({ content: cleanedContent, metadata });
+          goals.returns = true;
+          console.log(`  [Task ${taskNum}] 🔄 Returns policy extracted`);
+        }
+      }
+
+      // 🔥 V4.1: استخراج المنتجات مع النظام الذكي
+      if (goals.products < 27) {
+        console.log(`  [Task ${taskNum}] 🛍️ Starting product extraction...`);
+        
+        let extractedProducts: Array<{ name: string; description: string }> = [];
+        diagnostics.strategiesAttempted.push('intelligent_extraction');
+
+        // استخدام النظام الذكي للاستخراج
+        extractedProducts = intelligentProductExtraction(
+          $, 
+          classification.platform || 'generic', 
+          url, 
+          taskNum, 
+          classification
+        );
+
+        // 🔥 الشرط الصارم: إضافة المنتجات فقط إذا كان لها وصف حقيقي
+        extractedProducts.forEach(product => {
+          if (goals.products >= 27) return;
+          
+          if (hasRealDescription(product.description)) {
+            const content = `اسم المنتج: ${product.name}\nوصف المنتج: ${product.description}`;
+            const metadata = {
+              source: url,
+              category: 'product_info',
+              projectId,
+              productName: product.name,
+              confidence: classification.confidence || 70,
+              extractionMethod: 'intelligent_v4.1',
+              pageType: classification.category,
+              hasValidDescription: true
+            };
+            
+            documentsToEmbed.push({ content, metadata });
+            goals.products++;
+            console.log(`  [Task ${taskNum}] ➕ ADDED: "${product.name.substring(0, 30)}..." (${goals.products}/27)`);
+          } else {
+            console.log(`  [Task ${taskNum}] ❌ REJECTED: "${product.name.substring(0, 30)}..." - No valid description`);
+          }
+        });
+
+        diagnostics.productsFound = extractedProducts.length;
+        
+        if (extractedProducts.length === 0) {
+          diagnostics.issues.push('No products with valid descriptions found');
+        }
+      }
+
+      diagnostics.extractionTime = Date.now() - extractionStartTime;
+      createDiagnosticReport(taskNum, diagnostics);
+
+      // 🔥 إدراج في Supabase
+      if (documentsToEmbed.length > 0) {
+        console.log(
+          `  [Task ${taskNum}] 🧠 Generating embeddings for ${documentsToEmbed.length} document(s)...`
+        );
+        const contents = documentsToEmbed.map((d) => d.content);
+        const embeddings = await langchainEmbeddings.embedDocuments(contents);
+
+        const supabaseDocs: SupabaseDocument[] = documentsToEmbed.map(
+          (doc, i) => ({
+            project_id: projectId,
+            content: doc.content,
+            metadata: doc.metadata,
+            embedding: embeddings[i],
+          })
+        );
+
+        const { error: insertError } = await supabaseAdmin
+          .from("documents")
+          .insert(supabaseDocs);
+
+        if (insertError) {
+          console.error(
+            `  [Task ${taskNum}] ❌ Supabase insert error:`,
+            insertError.message
+          );
+        } else {
+          console.log(
+            `  [Task ${taskNum}] ✅ Successfully inserted ${supabaseDocs.length} document(s) into Supabase.`
+          );
+          totalDocumentsProcessed += supabaseDocs.length;
+        }
+      }
+    };
+
+    // [نفس الكود السابق للحلقة الرئيسية وإدارة المهام]
+    // ... (الكود الحالي لإدارة المهام والحلقة الرئيسية)
+
+    const runningTasks: Promise<void>[] = [];
+    let taskCounter = 0;
+    const mainLoop = async () => {
+      while (true) {
+        if (!browser || !browser.isConnected()) {
+          console.log("❌ Browser closed unexpectedly, stopping crawl...");
+          break;
+        }
+
+        if (
+          visitedUrls.size > GOAL_PATIENCE_THRESHOLD &&
+          runningTasks.length === 0
+        ) {
+          if (!goals.shipping) {
+            console.log(`🟡 Patience threshold reached for 'shipping'. Giving up.`);
+            goals.shipping = true;
+          }
+          if (!goals.returns) {
+            console.log(`🟡 Patience threshold reached for 'returns'. Giving up.`);
+            goals.returns = true;
+          }
+        }
+
+        if (
+          (goals.storeName && goals.shipping && goals.returns && goals.products >= 27) ||
+          (urlsToVisit.size === 0 && runningTasks.length === 0) ||
+          !browser?.isConnected()
+        ) {
+          break;
+        }
+
+        while (
+          runningTasks.length < MAX_CONCURRENT_TASKS &&
+          urlsToVisit.size > 0 &&
+          browser?.isConnected()
+        ) {
+          const sortedUrls = Array.from(urlsToVisit.entries())
+            .sort((a, b) => b[1] - a[1]);
+
+          if (sortedUrls.length > 0) {
+            const nextUrl = sortedUrls[0][0];
+            urlsToVisit.delete(nextUrl);
+            
+            if (visitedUrls.has(nextUrl)) continue;
+            visitedUrls.add(nextUrl);
+
+            const task = processUrlTask(nextUrl, ++taskCounter);
+            runningTasks.push(task);
+
+            task
+              .catch((error) => {
+                console.error(`  [Task ${taskCounter}] ❌ Task failed: ${error.message}`);
+              })
+              .finally(() => {
+                const index = runningTasks.indexOf(task);
+                if (index > -1) runningTasks.splice(index, 1);
+              });
+          }
+        }
+
+        if (runningTasks.length > 0) {
+          await Promise.race(runningTasks);
+        } else if (urlsToVisit.size > 0 && browser?.isConnected()) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
+    };
+
+    await mainLoop();
+    if (runningTasks.length > 0) {
+      console.log(`⏳ Waiting for ${runningTasks.length} remaining tasks...`);
+      await Promise.allSettled(runningTasks);
+    }
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`\n${"=".repeat(60)}\n✅ HYPER-CRAWLER v4.1 COMPLETED!`);
+    console.log(`⏱️  Duration: ${duration}s`);
+    console.log(`🔗 URLs visited: ${visitedUrls.size}`);
+    console.log(`🧠 Pattern Learning: ${patternLearningCompleted ? 'SUCCESS' : 'NOT_USED'}`);
+    console.log(`--- WAIT STRATEGY STATISTICS ---`);
+    waitStrategyStats.forEach((count, strategy) => {
+      console.log(`  ${strategy}: ${count} times`);
+    });
+    console.log(`--- FINAL GOAL STATUS ---`);
+    console.log(`Store Name Found: ${goals.storeName}`);
+    console.log(`Shipping Info Found: ${goals.shipping}`);
+    console.log(`Returns Info Found: ${goals.returns}`);
+    console.log(`Products Found: ${goals.products} / 27`);
+    console.log(`Products With Valid Descriptions: ${goals.products}`);
+    console.log(`Overall Accuracy: ${((goals.products / 27) * 100).toFixed(1)}%`);
+    console.log(`${"=".repeat(60)}\n`);
+
+    // 🔥 تحديث timestamp للمشروع
+    try {
+      const newCrawlVersion = uuidv4();
+      const { error: updateError } = await supabaseAdmin
+        .from("projects")
+        .update({ crawl_version: newCrawlVersion })
+        .eq("id", projectId);
+
+      if (updateError) {
+        console.error("[Realtime Trigger] Failed to update project timestamp:", updateError);
+      } else {
+        console.log(`[Realtime Trigger] Successfully updated project ${projectId}`);
+      }
+    } catch (e) {
+      console.error("[Realtime Trigger] Critical error during project update:", e);
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Hyper-Crawler v4.1 completed with AI-powered learning!",
+        stats: {
+          duration: `${duration}s`,
+          urlsVisited: visitedUrls.size,
+          documentsProcessed: totalDocumentsProcessed,
+          goals,
+          accuracy: `${((goals.products / 27) * 100).toFixed(1)}%`,
+          patternLearning: patternLearningCompleted,
+          waitStrategies: Object.fromEntries(waitStrategyStats),
+        },
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("\n❌ CRITICAL ERROR:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json(
+      { success: false, error: "Internal server error", details: errorMessage },
+      { status: 500 }
+    );
+  } finally {
+    if (browser && browser.isConnected()) {
+      await browser.close();
+      console.log("[Playwright] Browser closed safely.");
+    }
+  }
+}

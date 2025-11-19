@@ -45,6 +45,25 @@ function ChatPageContent() {
             تفاعل مع أيقونة الدردشة في الزاوية السفلية اليمنى لبدء الاختبار.
           </p>
         </div>
+
+        <div className="mt-12 p-6 bg-white border border-gray-200 rounded-lg">
+          <h2 className="text-xl font-semibold">محتوى الصفحة الوهمي</h2>
+          <p className="mt-4 text-gray-700">
+            تفاعل مع أيقونة الدردشة في الزاوية السفلية اليمنى لبدء الاختبار.
+          </p>
+        </div>
+        <div className="mt-12 p-6 bg-white border border-gray-200 rounded-lg">
+          <h2 className="text-xl font-semibold">محتوى الصفحة الوهمي</h2>
+          <p className="mt-4 text-gray-700">
+            تفاعل مع أيقونة الدردشة في الزاوية السفلية اليمنى لبدء الاختبار.
+          </p>
+        </div>
+        <div className="mt-12 p-6 bg-white border border-gray-200 rounded-lg">
+          <h2 className="text-xl font-semibold">محتوى الصفحة الوهمي</h2>
+          <p className="mt-4 text-gray-700">
+            تفاعل مع أيقونة الدردشة في الزاوية السفلية اليمنى لبدء الاختبار.
+          </p>
+        </div>
       </div>
 
       {/* === هنا يتم استدعاء الـ Widget بالـ projectId الصحيح === */}

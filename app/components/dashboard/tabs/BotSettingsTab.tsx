@@ -139,42 +139,47 @@ export default function BotSettingsTab({ projectId }: { projectId: string }) {
       setIsSaving(false);
     }
   };
-const handleSync = async () => {
+// في BotSettingsTab.tsx
+
+const handleSync = async () => { // <-- أعد async
   if (!storeUrl || storeUrl.trim() === "") {
     toast.error("ادخل رابط متجرك اولاً");
     return;
   }
   
   setIsSyncing(true);
+  const toastId = toast.success("بدا الزحف");
   
   try {
-    const crawlApiUrl = process.env.NEXT_PUBLIC_CRAWL_API_URL;
-    if (!crawlApiUrl) throw new Error("لم يتم تكوين رابط خدمة الزحف.");
+    const crawlApiUrl = process.env.NEXT_PUBLIC_CRAWL_API_URL || '/api/crawl';
 
-    // ✅ الآن نستخدم await مرة أخرى، لأننا نتوقع ردًا فوريًا
+    // ✅ [تم التعديل] أعد await لانتظار انتهاء الزاحف
     const response = await fetch(crawlApiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ projectId, url: storeUrl }),
     });
 
-    // تحقق من أن الخادم قبل الطلب (200 OK أو 202 Accepted)
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: "فشل الخادم في قبول الطلب." }));
-      throw new Error(errorData.message || "حدث خطأ في الخادم");
+      const errorData = await response.json();
+      throw new Error(errorData.details || "فشلت عملية المزامنة");
     }
 
-    // نجاح! الخادم قبل الطلب.
+    // ✅ [نجاح] الزاحف انتهى من عمله
     setLastSync(new Date().toLocaleString("ar-EG"));
-    toast.success("تم قبول طلب المزامنة. ستتم معالجة البيانات في الخلفية.");
+    toast.success("اكتملت المزامنة بنجاح!", { id: toastId });
+    
+    // ✅ [جديد] الآن، أرسل إشارة التحديث لأننا نعلم أن المهمة قد انتهت
+    const channel = new BroadcastChannel('knowledge_update_channel');
+    channel.postMessage({ type: 'REVALIDATE_KNOWLEDGE', projectId: projectId });
+    channel.close();
 
   } catch (err: any) {
-    toast.error(err.message || "فشل إرسال طلب المزامنة");
+    toast.error(err.message, { id: toastId });
   } finally {
     setIsSyncing(false);
   }
 };
-
 
   if (isLoading) return <SettingsSkeleton />;
   if (error)
@@ -284,7 +289,7 @@ const handleSync = async () => {
           >
             <button
               type="button"
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md shadow-sm hover:bg-indigo-700"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-indigo-700"
             >
               <Eye size={16} />
               <span>فتح صفحة اختبار الدردشة</span>

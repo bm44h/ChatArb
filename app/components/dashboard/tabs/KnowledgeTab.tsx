@@ -1,8 +1,12 @@
 // src/app/components/dashboard/tabs/KnowledgeTab.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback  } from 'react';
 import KnowledgeCard from './KnowledgeCard';
+import toast from "react-hot-toast";
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+
+
 
 interface KnowledgeData {
   documents: (string | null)[];
@@ -17,71 +21,121 @@ const categoryTitles: { [key: string]: string } = {
   Payment: 'طرق الدفع',
 };
 
-export default function KnowledgeTab({ projectId  }: { projectId : string }) {
+export default function KnowledgeTab({ projectId }: { projectId: string }) {
   const [groupedKnowledge, setGroupedKnowledge] = useState<Record<string, string[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- [تم التغيير] مفتاح الكاش الخاص بهذا البوت ---
-  const knowledgeCacheKey = `bot_knowledge_${projectId }`;
+  const supabase = createClientComponentClient();
 
+
+  const knowledgeCacheKey = `bot_knowledge_${projectId}`;
+
+  // ✅ [تم التعديل] فصل دالة الجلب لتكون قابلة لإعادة الاستخدام
+  // في KnowledgeTab.tsx
+
+  const fetchAndProcessKnowledge = useCallback(async (fromCache = true) => {
+  setIsLoading(true);
+  setError(null);
+  try {
+    // 1. إذا لم يكن تحديثًا قسريًا، حاول استخدام الكاش
+    if (fromCache) {
+      const cachedData = localStorage.getItem(knowledgeCacheKey);
+      if (cachedData) {
+        console.log("Loading knowledge from cache.");
+        processAndSetKnowledge(JSON.parse(cachedData));
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    // ✅ [الحل النهائي] إذا كان تحديثًا قسريًا (fromCache = false)،
+    // أو إذا لم يتم العثور على الكاش، قم بحذف أي كاش قديم أولاً.
+    console.log("Invalidating old knowledge cache...");
+    localStorage.removeItem(knowledgeCacheKey);
+
+    // 2. اطلب البيانات الجديدة من الـ API
+    console.log("Fetching fresh knowledge from API.");
+    const response = await fetch(`/api/knowledge?projectId=${projectId}`);
+    if (!response.ok) throw new Error('فشل في جلب بيانات قاعدة المعرفة');
+    
+    const data = await response.json();
+    const knowledgeData = data.documents 
+      ? { documents: data.documents.map((d: any) => d.content), metadatas: data.documents.map((d: any) => d.metadata) } 
+      : { documents: [], metadatas: [] };
+
+    // 3. قم بتخزين النتيجة الجديدة والصحيحة في الكاش
+    console.log("Saving fresh knowledge to cache.");
+    localStorage.setItem(knowledgeCacheKey, JSON.stringify(knowledgeData));
+    
+    // 4. قم بتحديث الواجهة
+    processAndSetKnowledge(knowledgeData);
+
+  } catch (err: any) {
+    setError(err.message);
+  } finally {
+    setIsLoading(false);
+  }
+}, [projectId, knowledgeCacheKey]);
+
+  // التأثير الأولي لجلب البيانات
   useEffect(() => {
-    if (!projectId ) {
+    if (!projectId) {
       setIsLoading(false);
       setError("معرف البوت غير متوفر.");
       return;
     }
+    fetchAndProcessKnowledge();
+  }, [projectId]);
 
-    const fetchKnowledge = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // 1. تحقق من الكاش أولاً
-        const cachedData = localStorage.getItem(knowledgeCacheKey);
-        if (cachedData) {
-          console.log("Loading knowledge from cache.");
-          const parsedData: KnowledgeData = JSON.parse(cachedData);
-          processAndSetKnowledge(parsedData); // <-- استخدام دالة مساعدة
-          setIsLoading(false);
-          return; // توقف هنا، لا حاجة لطلب API
+  // ✅ [الحل النهائي] مستمع لتحديثات Supabase Realtime
+  useEffect(() => {
+    if (!projectId) return;
+
+    // تعريف قناة الاشتراك
+    const channel = supabase
+      .channel(`project-updates-${projectId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'projects',
+          filter: `id=eq.${projectId}`, // استمع فقط للتغييرات على هذا المشروع
+        },
+        (payload) => {
+          console.log('Supabase Realtime: Project updated!', payload);
+          toast('تم اكتشاف تحديثات من الخادم، جاري تحديث قاعدة المعرفة...', { icon: '🔄' });
+          
+          // قم بإعادة الجلب مع تجاهل الكاش
+          fetchAndProcessKnowledge(false);
         }
+      )
+      .subscribe();
 
-        // 2. إذا لم يكن في الكاش، اطلبه من الـ API
-        console.log("Fetching knowledge from API.");
-        const response = await fetch(`/api/knowledge?projectId=${projectId}`); // <-- الإصلاح الصحيح
+    console.log(`Supabase Realtime: Subscribed to updates for project ${projectId}`);
 
-        if (!response.ok) {
-          throw new Error('فشل في جلب بيانات قاعدة المعرفة');
-        }
-        const data: { knowledge: KnowledgeData } = await response.json();
-
-        // 3. قم بتخزين النتيجة في الكاش للمرة القادمة
-        localStorage.setItem(knowledgeCacheKey, JSON.stringify(data.knowledge));
-        
-        processAndSetKnowledge(data.knowledge); // <-- استخدام دالة مساعدة
-
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
+    // تنظيف الاشتراك عند إغلاق المكون
+    return () => {
+      console.log(`Supabase Realtime: Unsubscribing from project ${projectId}`);
+      supabase.removeChannel(channel);
     };
+  }, [projectId, supabase, fetchAndProcessKnowledge]);
 
-    fetchKnowledge();
-  }, [projectId ]);
-
-  // دالة مساعدة لتجنب تكرار الكود
-  const processAndSetKnowledge = (data: KnowledgeData) => {
+  // ... (بقية الكود: processAndSetKnowledge, والجزء الخاص بالعرض يبقى كما هو)
+  const processAndSetKnowledge = (data: any) => {
     const groups: Record<string, string[]> = {};
-    data.documents.forEach((doc, index) => {
-      if (!doc) return;
-      const metadata = data.metadatas[index];
-      const category = metadata?.category || 'general';
-      if (!groups[category]) {
-        groups[category] = [];
-      }
-      groups[category].push(doc);
-    });
+    if (data && data.documents) {
+        data.documents.forEach((doc: string, index: number) => {
+            if (!doc) return;
+            const metadata = data.metadatas[index];
+            const category = metadata?.category || 'general';
+            if (!groups[category]) {
+                groups[category] = [];
+            }
+            groups[category].push(doc);
+        });
+    }
     setGroupedKnowledge(groups);
   };
 

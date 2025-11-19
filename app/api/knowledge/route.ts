@@ -1,4 +1,4 @@
-// src/app/api/knowledge/route.ts - الإصدار النهائي باستخدام Supabase
+// src/app/api/knowledge/route.ts - الإصدار المحسن
 
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
@@ -8,54 +8,30 @@ export async function GET(request: Request) {
   const supabase = createRouteHandlerClient({ cookies });
   
   try {
-    // 1. التحقق من جلسة المستخدم
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      return NextResponse.json({ message: 'غير مصرح به' }, { status: 401 });
-    }
-    const userId = session.user.id;
+    if (!session) return new Response('Unauthorized', { status: 401 });
 
-    // 2. الحصول على معرف المشروع من الرابط
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
-    if (!projectId) {
-      return NextResponse.json({ message: 'معرف المشروع مطلوب' }, { status: 400 });
-    }
+    if (!projectId) return new Response('Project ID is required', { status: 400 });
 
-    // 3. التحقق من أن المستخدم يملك هذا المشروع
-    const { data: project, error: projectError } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('id', projectId)
-      .eq('user_id', userId)
-      .single();
+    // استخدم استدعاء دالة RPC للتحقق من الملكية وجلب البيانات في خطوة واحدة
+    // هذا يتطلب إنشاء دالة RPC في Supabase، لكنه أكثر كفاءة.
+    // كحل أبسط الآن، سنبقي على التحقق المنفصل.
+    const { count } = await supabase.from('projects').select('*', { count: 'exact', head: true }).eq('id', projectId).eq('user_id', session.user.id);
+    if (count !== 1) return new Response('Forbidden', { status: 403 });
 
-    if (projectError || !project) {
-      return NextResponse.json({ message: 'الوصول مرفوض أو المشروع غير موجود' }, { status: 403 });
-    }
-
-    // ✅ [الحل] 4. جلب البيانات مباشرة من جدول 'documents' في Supabase
-    const { data: documents, error: documentsError } = await supabase
+    const { data: documents, error } = await supabase
       .from('documents')
       .select('content, metadata')
-      .eq('metadata->>projectId', projectId); // <-- فلترة حسب معرف المشروع
+      .eq('project_id', projectId); // <-- تم التعديل لاستخدام project_id مباشرة
 
-    if (documentsError) {
-      console.error("Error fetching knowledge from Supabase:", documentsError);
-      throw documentsError;
-    }
+    if (error) throw error;
 
-    // 5. إعادة هيكلة البيانات لتناسب الشكل الذي تتوقعه الواجهة الأمامية
-    const knowledge = {
-      documents: documents.map(doc => doc.content),
-      metadatas: documents.map(doc => doc.metadata),
-    };
+    return NextResponse.json({ documents }, { status: 200 });
 
-    // 6. إرجاع البيانات
-    return NextResponse.json({ knowledge }, { status: 200 });
-
-  } catch (error) {
+  } catch (error: any) {
     console.error('API GET /knowledge error:', error);
-    return NextResponse.json({ message: 'حدث خطأ داخلي في الخادم' }, { status: 500 });
+    return new Response(error.message, { status: 500 });
   }
 }

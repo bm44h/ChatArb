@@ -3,12 +3,7 @@
 import { use } from 'react';
 import ChatWidget from '@/app/components/chat/ChatWidget';
 
-export default function ChatWidgetPage({ 
-  params 
-}: { 
-  params: Promise<{ projectId: string }> 
-}) {
-  // استخدم React.use() لفك Promise في client component
+export default function ChatWidgetPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params);
 
   if (!projectId) {
@@ -16,8 +11,19 @@ export default function ChatWidgetPage({
   }
 
   return (
-    <div style={{ background: 'transparent', width: '100%', height: '100%' }}>
-      <ChatWidget projectId={projectId} />
-    </div>
+    <>
+      <style>{`
+        html, body {
+          margin: 0;
+          padding: 0;
+          background: transparent !important;
+          
+        }
+      `}</style>
+
+      <div style={{ background: 'transparent', width: '100%', height: '100%' }}>
+        <ChatWidget projectId={projectId} />
+      </div>
+    </>
   );
 }

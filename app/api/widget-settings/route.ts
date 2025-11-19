@@ -6,6 +6,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
+    
 
     if (!projectId) {
       return NextResponse.json({ error: 'معرف المشروع مطلوب' }, { status: 400 });

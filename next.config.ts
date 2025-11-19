@@ -2,6 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
 
+
+  
+
+  
+
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -17,6 +22,8 @@ const nextConfig: NextConfig = {
       test: /\.node$/,
       use: 'node-loader',
     });
+
+    
 
     
     return config;

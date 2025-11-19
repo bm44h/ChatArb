@@ -1,47 +1,50 @@
-// src/app/api/widget.js/route.ts
+// app/api/widget.js/route.ts
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   
   const scriptContent = `
     (function() {
-      // استخراج projectId من السكربت نفسه
-      const scriptTag = document.currentScript;
-      const projectId = scriptTag.getAttribute('data-project-id');
-
+      const projectId = document.currentScript.getAttribute('data-project-id');
       if (!projectId) {
-        console.error("Chat Widget: data-project-id is missing.");
+        console.error("Manus Chat: data-project-id is missing.");
         return;
       }
 
-      // 1. إنشاء حاوية للـ Widget
-      const widgetContainer = document.createElement('div');
-      widgetContainer.id = 'manus-chat-widget-container';
-      document.body.appendChild(widgetContainer);
-
-      // 2. إنشاء iframe لعزل الـ Widget
       const iframe = document.createElement('iframe');
       iframe.id = 'manus-chat-iframe';
       iframe.src = '${process.env.NEXT_PUBLIC_APP_URL}/chat-widget/' + projectId;
       iframe.style.position = 'fixed';
       iframe.style.bottom = '20px';
       iframe.style.right = '20px';
-      iframe.style.width = '400px'; // عرض مبدئي
-      iframe.style.height = '500px'; // ارتفاع مبدئي
       iframe.style.border = 'none';
-      iframe.style.zIndex = '999999';
-      iframe.style.display = 'block'; // تأكد من أنه مرئي
+      iframe.style.zIndex = '2147483647'; // أعلى z-index ممكن
+      iframe.style.transition = 'width 0.2s ease-out, height 0.2s ease-out';
+      iframe.style.backgroundColor = 'transparent';
+      iframe.allow = "fullscreen"; // للسماح بالوضع الكامل إذا احتجت إليه
+      
+      document.body.appendChild(iframe);
 
-      widgetContainer.appendChild(iframe);
+      // المستمع الذي يغير حجم الـ iframe بناءً على الرسائل من الداخل
+      window.addEventListener('message', function(event) {
+        // يمكنك إضافة تحقق من المصدر هنا للأمان في بيئة الإنتاج
+        // if (event.origin !== '${process.env.NEXT_PUBLIC_APP_URL}') return;
 
-      console.log('Manus Chat Widget loaded for project:', projectId);
+        if (event.data && event.data.type === 'resize-manus-chat') {
+          iframe.style.width = event.data.payload.width;
+          iframe.style.height = event.data.payload.height;
+        }
+      });
     })();
   `;
 
   return new NextResponse(scriptContent, {
     headers: {
       'Content-Type': 'application/javascript',
-      'Cache-Control': 'public, max-age=31536000, immutable', // تخزين مؤقت قوي
+      // [مهم] تعطيل الكاش أثناء التطوير لرؤية التغييرات فورًا
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
     },
   });
 }
